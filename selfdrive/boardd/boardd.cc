@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sched.h>
+#include <errno.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -32,8 +33,8 @@
 
 #define MAX_IR_POWER 0.5f
 #define MIN_IR_POWER 0.0f
-#define CUTOFF_GAIN 0.015625f  // iso400
-#define SATURATE_GAIN 0.0625f  // iso1600
+#define CUTOFF_IL 200
+#define SATURATE_IL 1600
 #define NIBBLE_TO_HEX(n) ((n) < 10 ? (n) + '0' : ((n) - 10) + 'a')
 #define VOLTAGE_K 0.091  // LPF gain for 5s tau (dt/tau / (dt/tau + 1))
 
@@ -508,7 +509,7 @@ void can_health(PubMaster &pm) {
 
   size_t i = 0;
   for (size_t f = size_t(cereal::HealthData::FaultType::RELAY_MALFUNCTION);
-       f <= size_t(cereal::HealthData::FaultType::REGISTER_DIVERGENT); f++){
+       f <= size_t(cereal::HealthData::FaultType::INTERRUPT_RATE_KLINE_INIT); f++){
     if (fault_bits.test(f)) {
       faults.set(i, cereal::HealthData::FaultType(f));
       i++;
@@ -531,13 +532,15 @@ void can_send(cereal::Event::Reader &event) {
     //Older than 1 second. Dont send.
     return;
   }
-  int msg_count = event.getSendcan().size();
+
+  auto can_data_list = event.getSendcan();
+  int msg_count = can_data_list.size();
 
   uint32_t *send = (uint32_t*)malloc(msg_count*0x10);
   memset(send, 0, msg_count*0x10);
 
   for (int i = 0; i < msg_count; i++) {
-    auto cmsg = event.getSendcan()[i];
+    auto cmsg = can_data_list[i];
     if (cmsg.getAddress() >= 0x800) {
       // extended
       send[i*4] = (cmsg.getAddress() << 3) | 5;
@@ -545,9 +548,10 @@ void can_send(cereal::Event::Reader &event) {
       // normal
       send[i*4] = (cmsg.getAddress() << 21) | 1;
     }
-    assert(cmsg.getDat().size() <= 8);
-    send[i*4+1] = cmsg.getDat().size() | (cmsg.getSrc() << 4);
-    memcpy(&send[i*4+2], cmsg.getDat().begin(), cmsg.getDat().size());
+    auto can_data = cmsg.getDat();
+    assert(can_data.size() <= 8);
+    send[i*4+1] = can_data.size() | (cmsg.getSrc() << 4);
+    memcpy(&send[i*4+2], can_data.begin(), can_data.size());
   }
 
   // send to board
@@ -583,20 +587,26 @@ void *can_send_thread(void *crap) {
   Context * context = Context::create();
   SubSocket * subscriber = SubSocket::create(context, "sendcan");
   assert(subscriber != NULL);
+  subscriber->setTimeout(100);
 
   // run as fast as messages come in
   while (!do_exit) {
     Message * msg = subscriber->receive();
 
-    if (msg){
-      auto amsg = kj::heapArray<capnp::word>((msg->getSize() / sizeof(capnp::word)) + 1);
-      memcpy(amsg.begin(), msg->getData(), msg->getSize());
-
-      capnp::FlatArrayMessageReader cmsg(amsg);
-      cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
-      can_send(event);
-      delete msg;
+    if (!msg){
+      if (errno == EINTR) {
+        do_exit = true;
+      }
+      continue;
     }
+
+    auto amsg = kj::heapArray<capnp::word>((msg->getSize() / sizeof(capnp::word)) + 1);
+    memcpy(amsg.begin(), msg->getData(), msg->getSize());
+
+    capnp::FlatArrayMessageReader cmsg(amsg);
+    cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
+    can_send(event);
+    delete msg;
   }
 
   delete subscriber;
@@ -680,15 +690,15 @@ void *hardware_control_thread(void *crap) {
     }
     if (sm.updated("frontFrame")){
       auto event = sm["frontFrame"];
-      float cur_front_gain = event.getFrontFrame().getGainFrac();
+      int cur_integ_lines = event.getFrontFrame().getIntegLines();
       last_front_frame_t = event.getLogMonoTime();
 
-      if (cur_front_gain <= CUTOFF_GAIN) {
+      if (cur_integ_lines <= CUTOFF_IL) {
         ir_pwr = 100.0 * MIN_IR_POWER;
-      } else if (cur_front_gain > SATURATE_GAIN) {
+      } else if (cur_integ_lines > SATURATE_IL) {
         ir_pwr = 100.0 * MAX_IR_POWER;
       } else {
-        ir_pwr = 100.0 * (MIN_IR_POWER + ((cur_front_gain - CUTOFF_GAIN) * (MAX_IR_POWER - MIN_IR_POWER) / (SATURATE_GAIN - CUTOFF_GAIN)));
+        ir_pwr = 100.0 * (MIN_IR_POWER + ((cur_integ_lines - CUTOFF_IL) * (MAX_IR_POWER - MIN_IR_POWER) / (SATURATE_IL - CUTOFF_IL)));
       }
     }
     // Disable ir_pwr on front frame timeout

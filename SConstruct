@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 import platform
@@ -62,6 +63,9 @@ if arch == "aarch64" or arch == "larch64":
       cxxflags += ["-DQCOM_REPLAY"]
 
 else:
+  cflags = []
+  cxxflags = []
+
   lenv = {
     "PATH": "#external/bin:" + os.environ['PATH'],
   }
@@ -77,6 +81,8 @@ else:
       "/usr/local/lib",
       "/System/Library/Frameworks/OpenGL.framework/Libraries",
     ]
+    cflags.append("-DGL_SILENCE_DEPRECATION")
+    cxxflags.append("-DGL_SILENCE_DEPRECATION")
   else:
     libpath = [
       "#phonelibs/snpe/x86_64-linux-clang",
@@ -95,9 +101,6 @@ else:
 
   # allows shared libraries to work globally
   rpath = [os.path.join(os.getcwd(), x) for x in rpath]
-
-  cflags = []
-  cxxflags = []
 
 ccflags_asan = ["-fsanitize=address", "-fno-omit-frame-pointer"] if GetOption('asan') else []
 ldflags_asan = ["-fsanitize=address"] if GetOption('asan') else []
@@ -159,7 +162,19 @@ env = Environment(
 )
 
 if os.environ.get('SCONS_CACHE'):
-  CacheDir('/tmp/scons_cache')
+  cache_dir = '/tmp/scons_cache'
+
+  if os.getenv('CI'):
+    branch = os.getenv('GIT_BRANCH')
+
+    if QCOM_REPLAY:
+      cache_dir = '/tmp/scons_cache_qcom_replay'
+    elif branch is not None and branch != 'master':
+      cache_dir_branch = '/tmp/scons_cache_' + branch
+      if not os.path.isdir(cache_dir_branch) and os.path.isdir(cache_dir):
+        shutil.copytree(cache_dir, cache_dir_branch)
+      cache_dir = cache_dir_branch
+  CacheDir(cache_dir)
 
 node_interval = 5
 node_count = 0
@@ -215,9 +230,8 @@ SConscript(['common/kalman/SConscript'])
 SConscript(['common/transformations/SConscript'])
 SConscript(['phonelibs/SConscript'])
 
-if arch != "Darwin":
-  SConscript(['selfdrive/camerad/SConscript'])
-  SConscript(['selfdrive/modeld/SConscript'])
+SConscript(['selfdrive/camerad/SConscript'])
+SConscript(['selfdrive/modeld/SConscript'])
 
 SConscript(['selfdrive/controls/lib/cluster/SConscript'])
 SConscript(['selfdrive/controls/lib/lateral_mpc/SConscript'])

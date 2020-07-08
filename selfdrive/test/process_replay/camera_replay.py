@@ -6,6 +6,7 @@ from typing import Any
 from tqdm import tqdm
 
 from common.android import ANDROID
+os.environ['CI'] = "1"
 if ANDROID:
   os.environ['QCOM_REPLAY'] = "1"
 import selfdrive.manager as manager
@@ -19,7 +20,7 @@ from selfdrive.test.process_replay.compare_logs import compare_logs, save_log
 from selfdrive.test.process_replay.test_processes import format_diff
 from selfdrive.version import get_git_commit
 
-TEST_ROUTE = "5b7c365c50084530|2020-04-15--16-13-24"
+TEST_ROUTE = "99c94dc769b5d96e|2019-08-03--14-19-59"
 
 def camera_replay(lr, fr):
 
