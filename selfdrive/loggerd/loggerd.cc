@@ -135,7 +135,9 @@ void encoder_thread(bool is_streaming, bool raw_clips, bool front) {
       #ifndef QCOM2
       // TODO: fix qcamera on tici
       if (!front) {
-        encoder_init(&encoder_alt, "qcamera.ts", 480, 360, CAMERA_FPS, 128000, false, true);
+        // hgn: Increased alt-encode bitrate to 256k
+        // encoder_init(&encoder_alt, "qcamera.ts", 480, 360, CAMERA_FPS, 128000, false, true);
+        encoder_init(&encoder_alt, "qcamera.ts", 480, 360, CAMERA_FPS, 256000, false, true);
         has_encoder_alt = true;
       }
       #endif
