@@ -105,7 +105,9 @@ class Uploader():
     self.last_exc = None
 
     self.immediate_priority = {"qlog.bz2": 0, "qcamera.ts": 1}
-    self.high_priority = {"rlog.bz2": 0, "fcamera.hevc": 1, "dcamera.hevc": 2}
+    # hgn: Removed F/D camera from high-priority to allow Logs to upload first
+    #self.high_priority = {"rlog.bz2": 0, "fcamera.hevc": 1, "dcamera.hevc": 2}
+    self.high_priority = {"rlog.bz2": 0}
 
   def get_upload_sort(self, name):
     if name in self.immediate_priority:
