@@ -140,15 +140,15 @@ class CarController():
         # Cancel ACC if it's engaged with OP disengaged.
         self.graButtonStatesToSend = BUTTON_STATES.copy()
         self.graButtonStatesToSend["cancel"] = True
-      #elif enabled and CS.out.standstill:
+      elif enabled and CS.out.standstill:
         # hgn: Commented to block auto-press behaviour. Should find lead-car speed
         #      and only resume once vehicle in front departs.
         #      Button-spam behaviour prevents Auto-start stop from functioning.
         # Blip the Resume button if we're engaged at standstill.
         # FIXME: This is a naive implementation, improve with visiond or radar input.
         # A subset of MQBs like to "creep" too aggressively with this implementation.
-        #self.graButtonStatesToSend = BUTTON_STATES.copy()
-        #self.graButtonStatesToSend["resumeCruise"] = True
+        self.graButtonStatesToSend = BUTTON_STATES.copy()
+        self.graButtonStatesToSend["resumeCruise"] = True
 
     # OP/Panda can see this message but can't filter it when integrated at the
     # R242 LKAS camera. It could do so if integrated at the J533 gateway, but
