@@ -24,7 +24,7 @@ class CarState(CarStateBase):
       self.get_cam_can_parser = self.get_mqb_cam_can_parser
       self.update = self.update_mqb
       if CP.transmissionType == TRANS.automatic:
-    self.shifter_values = can_define.dv["Getriebe_11"]['GE_Fahrstufe']
+        self.shifter_values = can_define.dv["Getriebe_11"]['GE_Fahrstufe']
       elif CP.transmissionType == TRANS.direct:
         self.shifter_values = can_define.dv["EV_Gearshift"]['GearPosition']
 
