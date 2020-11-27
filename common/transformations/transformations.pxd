@@ -1,3 +1,4 @@
+#cython: language_level=3
 from libcpp cimport bool
 
 cdef extern from "orientation.cc":
@@ -55,6 +56,9 @@ cdef extern from "coordinates.cc":
   Geodetic ecef2geodetic(ECEF)
 
   cdef cppclass LocalCoord_c "LocalCoord":
+    Matrix3 ned2ecef_matrix
+    Matrix3 ecef2ned_matrix
+
     LocalCoord_c(Geodetic, ECEF)
     LocalCoord_c(Geodetic)
     LocalCoord_c(ECEF)

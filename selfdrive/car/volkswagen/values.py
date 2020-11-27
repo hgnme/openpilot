@@ -46,7 +46,7 @@ MQB_LDW_MESSAGES = {
 }
 
 class CAR:
-  GOLF = "Volkswagen Golf"
+  GOLF = "VOLKSWAGEN GOLF"
 
 FINGERPRINTS = {
   CAR.GOLF: [ # Mega Fingerprint taken from @jyoung8607 -b vw-community-devel

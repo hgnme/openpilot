@@ -329,6 +329,10 @@ def keyboard_controller_thread(q, route_start_time):
         seek_time_input = input('time: ')
         seek_time = absolute_time_str(seek_time_input, route_start_time)
 
+        # If less than 60, assume segment number
+        if seek_time < 60:
+          seek_time *= 60
+
         q.send_pyobj(SeekAbsoluteTime(seek_time))
       except Exception as e:
         print("Time not understood: {}".format(e))
@@ -412,9 +416,6 @@ def main(argv):
       target=unlogger_thread,
       args=(command_address, forward_commands_address, data_address, args.realtime,
             _get_address_mapping(args), args.publish_time_length, args.bind_early, args.no_loop))
-
-    for p in subprocesses.values():
-      p.daemon = True
 
     subprocesses["data"].start()
     subprocesses["control"].start()
