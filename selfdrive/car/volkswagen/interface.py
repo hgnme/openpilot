@@ -22,24 +22,24 @@ class CarInterface(CarInterfaceBase):
     return float(accel) / 4.0
 
   @staticmethod
-  def get_params(candidate, fingerprint=gen_empty_fingerprint(), has_relay=False, car_fw=None):
-    ret = CarInterfaceBase.get_std_params(candidate, fingerprint, has_relay)
+  def get_params(candidate, fingerprint=gen_empty_fingerprint(), car_fw=None):
+    ret = CarInterfaceBase.get_std_params(candidate, fingerprint)
 
     ret.enableCamera = True  # Stock camera detection doesn't apply to VW
-      ret.carName = "volkswagen"
-      ret.radarOffCan = True
+    ret.carName = "volkswagen"
+    ret.radarOffCan = True
 
     # Common default parameters that may be overridden per-vehicle
-      ret.steerRateCost = 1.0
+    ret.steerRateCost = 1.0
     ret.steerActuatorDelay = 0.1
-      ret.steerLimitTimer = 0.4
+    ret.steerLimitTimer = 0.4
     ret.lateralTuning.pid.kf = 0.00006
     ret.lateralTuning.pid.kpV = [0.6]
     ret.lateralTuning.pid.kiV = [0.2]
     tire_stiffness_factor = 1.0
 
-      ret.lateralTuning.pid.kpBP = [0.]
-      ret.lateralTuning.pid.kiBP = [0.]
+    ret.lateralTuning.pid.kpBP = [0.]
+    ret.lateralTuning.pid.kiBP = [0.]
 
     if candidate in MQB_CARS:
       # Configuration items shared between all MQB vehicles
@@ -58,9 +58,9 @@ class CarInterface(CarInterfaceBase):
 
       # FIXME: Per-vehicle parameters need to be reintegrated.
       if candidate == CAR.GENERICMQB:
-      ret.mass = 1500 + STD_CARGO_KG
-      ret.wheelbase = 2.64
-      ret.centerToFront = ret.wheelbase * 0.45
+        ret.mass = 1500 + STD_CARGO_KG
+        ret.wheelbase = 2.64
+        ret.centerToFront = ret.wheelbase * 0.45
         ret.steerRatio = 15.9
 
     elif candidate in PQ_CARS:
@@ -91,10 +91,10 @@ class CarInterface(CarInterfaceBase):
       ret.networkLocation = NWL.fwdCamera
     elif manual_network_location == "gateway":
       ret.networkLocation = NWL.gateway
-    elif has_relay:
-      ret.networkLocation = NWL.fwdCamera
+    #elif has_relay:
+    #  ret.networkLocation = NWL.fwdCamera
     else:
-      ret.networkLocation = NWL.gateway
+      ret.networkLocation = NWL.fwdCamera #previously was gateway
 
     cloudlog.warning("Detected network location: %s", ret.networkLocation)
     cloudlog.warning("Detected transmission type: %s", ret.transmissionType)
