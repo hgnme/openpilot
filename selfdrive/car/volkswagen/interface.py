@@ -61,7 +61,7 @@ class CarInterface(CarInterfaceBase):
         ret.mass = 1500 + STD_CARGO_KG
         ret.wheelbase = 2.64
         ret.centerToFront = ret.wheelbase * 0.45
-        ret.steerRatio = 15.9
+        ret.steerRatio = 15.6
 
     elif candidate in PQ_CARS:
       # Configuration items shared between all PQ35/PQ46/NMS vehicles
@@ -80,7 +80,7 @@ class CarInterface(CarInterfaceBase):
         ret.mass = 1375 + STD_CARGO_KG
         ret.wheelbase = 2.58
         ret.centerToFront = ret.wheelbase * 0.45  # Estimated
-      ret.steerRatio = 15.6
+        ret.steerRatio = 15.6
 
     # Determine installed network location: take a manually forced setting if
     # present, otherwise assume camera for C2/BP and gateway for white/grey Panda.
