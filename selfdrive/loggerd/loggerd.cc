@@ -41,12 +41,14 @@
 
 namespace {
 
-constexpr int MAIN_BITRATE = 5000000;
 constexpr int MAIN_FPS = 20;
+
 #ifndef QCOM2
+constexpr int MAIN_BITRATE = 5000000;
 constexpr int MAX_CAM_IDX = LOG_CAMERA_ID_DCAMERA;
 constexpr int DCAM_BITRATE = 2500000;
 #else
+constexpr int MAIN_BITRATE = 10000000;
 constexpr int MAX_CAM_IDX = LOG_CAMERA_ID_ECAMERA;
 constexpr int DCAM_BITRATE = MAIN_BITRATE;
 #endif
@@ -61,7 +63,7 @@ LogCameraInfo cameras_logged[LOG_CAMERA_ID_MAX] = {
   [LOG_CAMERA_ID_FCAMERA] = {
     .stream_type = VISION_STREAM_YUV_BACK,
     .filename = "fcamera.hevc",
-    .frame_packet_name = "frame",
+    .frame_packet_name = "roadCameraState",
     .fps = MAIN_FPS,
     .bitrate = MAIN_BITRATE,
     .is_h265 = true,
@@ -71,7 +73,7 @@ LogCameraInfo cameras_logged[LOG_CAMERA_ID_MAX] = {
   [LOG_CAMERA_ID_DCAMERA] = {
     .stream_type = VISION_STREAM_YUV_FRONT,
     .filename = "dcamera.hevc",
-    .frame_packet_name = "frontFrame",
+    .frame_packet_name = "driverCameraState",
     .fps = MAIN_FPS, // on EONs, more compressed this way
     .bitrate = DCAM_BITRATE,
     .is_h265 = true,
@@ -81,7 +83,7 @@ LogCameraInfo cameras_logged[LOG_CAMERA_ID_MAX] = {
   [LOG_CAMERA_ID_ECAMERA] = {
     .stream_type = VISION_STREAM_YUV_WIDE,
     .filename = "ecamera.hevc",
-    .frame_packet_name = "wideFrame",
+    .frame_packet_name = "wideRoadCameraState",
     .fps = MAIN_FPS,
     .bitrate = MAIN_BITRATE,
     .is_h265 = true,
@@ -91,7 +93,7 @@ LogCameraInfo cameras_logged[LOG_CAMERA_ID_MAX] = {
   [LOG_CAMERA_ID_QCAMERA] = {
     .filename = "qcamera.ts",
     .fps = MAIN_FPS,
-    .bitrate = 128000,
+    .bitrate = 256000,
     .is_h265 = false,
     .downscale = true,
 #ifndef QCOM2
@@ -248,7 +250,7 @@ void encoder_thread(int cam_idx) {
           pthread_mutex_lock(&s.rotate_lock);
           for (auto &e : encoders) {
             e->encoder_close();
-            e->encoder_open(s.segment_path, s.rotate_segment);
+            e->encoder_open(s.segment_path);
           }
           rotate_state.cur_seg = s.rotate_segment;
           pthread_mutex_unlock(&s.rotate_lock);
@@ -266,16 +268,14 @@ void encoder_thread(int cam_idx) {
 
       // encode a frame
       for (int i = 0; i < encoders.size(); ++i) {
-        int out_segment = -1;
         int out_id = encoders[i]->encode_frame(buf->y, buf->u, buf->v,
-                                               buf->width, buf->height,
-                                               &out_segment, extra.timestamp_eof);
+                                               buf->width, buf->height, extra.timestamp_eof);
         if (i == 0 && out_id != -1) {
           // publish encode index
           MessageBuilder msg;
           // this is really ugly
-          auto eidx = cam_idx == LOG_CAMERA_ID_DCAMERA ? msg.initEvent().initFrontEncodeIdx() :
-                      (cam_idx == LOG_CAMERA_ID_ECAMERA ? msg.initEvent().initWideEncodeIdx() : msg.initEvent().initEncodeIdx());
+          auto eidx = cam_idx == LOG_CAMERA_ID_DCAMERA ? msg.initEvent().initDriverEncodeIdx() :
+                     (cam_idx == LOG_CAMERA_ID_ECAMERA ? msg.initEvent().initWideRoadEncodeIdx() : msg.initEvent().initRoadEncodeIdx());
           eidx.setFrameId(extra.frame_id);
           eidx.setTimestampSof(extra.timestamp_sof);
           eidx.setTimestampEof(extra.timestamp_eof);
@@ -285,7 +285,7 @@ void encoder_thread(int cam_idx) {
           eidx.setType(cam_idx == LOG_CAMERA_ID_DCAMERA ? cereal::EncodeIndex::Type::FRONT : cereal::EncodeIndex::Type::FULL_H_E_V_C);
     #endif
           eidx.setEncodeId(cnt);
-          eidx.setSegmentNum(out_segment);
+          eidx.setSegmentNum(rotate_state.cur_seg);
           eidx.setSegmentId(out_id);
           if (lh) {
             auto bytes = msg.toBytes();
@@ -369,7 +369,7 @@ int main(int argc, char** argv) {
   s.rotate_state[LOG_CAMERA_ID_FCAMERA].enabled = true;
 
 #if defined(QCOM) || defined(QCOM2)
-  bool record_front = Params().read_db_bool("RecordFront");
+  bool record_front = Params().getBool("RecordFront");
   if (record_front) {
     encoder_threads.push_back(std::thread(encoder_thread, LOG_CAMERA_ID_DCAMERA));
     s.rotate_state[LOG_CAMERA_ID_DCAMERA].enabled = true;
@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
 
   uint64_t msg_count = 0;
   uint64_t bytes_count = 0;
-  kj::Array<capnp::word> buf = kj::heapArray<capnp::word>(1024);
+  AlignedBuffer aligned_buf;
 
   double start_ts = seconds_since_boot();
   double last_rotate_tms = millis_since_boot();
@@ -427,23 +427,15 @@ int main(int argc, char** argv) {
         if (fpkt_id >= 0) {
           // track camera frames to sync to encoder
           // only process last frame
-          const uint8_t* data = (uint8_t*)last_msg->getData();
-          const size_t len = last_msg->getSize();
-          const size_t size = len / sizeof(capnp::word) + 1;
-          if (buf.size() < size) {
-            buf = kj::heapArray<capnp::word>(size);
-          }
-          memcpy(buf.begin(), data, len);
-
-          capnp::FlatArrayMessageReader cmsg(buf);
+          capnp::FlatArrayMessageReader cmsg(aligned_buf.align(last_msg));
           cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
 
           if (fpkt_id == LOG_CAMERA_ID_FCAMERA) {
-            s.rotate_state[fpkt_id].setLogFrameId(event.getFrame().getFrameId());
+            s.rotate_state[fpkt_id].setLogFrameId(event.getRoadCameraState().getFrameId());
           } else if (fpkt_id == LOG_CAMERA_ID_DCAMERA) {
-            s.rotate_state[fpkt_id].setLogFrameId(event.getFrontFrame().getFrameId());
+            s.rotate_state[fpkt_id].setLogFrameId(event.getDriverCameraState().getFrameId());
           } else if (fpkt_id == LOG_CAMERA_ID_ECAMERA) {
-            s.rotate_state[fpkt_id].setLogFrameId(event.getWideFrame().getFrameId());
+            s.rotate_state[fpkt_id].setLogFrameId(event.getWideRoadCameraState().getFrameId());
           }
           last_camera_seen_tms = millis_since_boot();
         }
@@ -494,6 +486,11 @@ int main(int argc, char** argv) {
 
   LOGW("closing logger");
   logger_close(&s.logger);
+
+  if (do_exit.power_failure){
+    LOGE("power failure");
+    sync();
+  }
 
   // messaging cleanup
   for (auto sock : socks) delete sock;

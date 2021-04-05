@@ -23,7 +23,7 @@ ExitHandler do_exit;
 using namespace ublox;
 int ubloxd_main(poll_ubloxraw_msg_func poll_func, send_gps_event_func send_func) {
   LOGW("starting ubloxd");
-
+  AlignedBuffer aligned_buf;
   UbloxMsgParser parser;
 
   Context * context = Context::create();
@@ -42,10 +42,7 @@ int ubloxd_main(poll_ubloxraw_msg_func poll_func, send_gps_event_func send_func)
       continue;
     }
 
-    auto amsg = kj::heapArray<capnp::word>((msg->getSize() / sizeof(capnp::word)) + 1);
-    memcpy(amsg.begin(), msg->getData(), msg->getSize());
-
-    capnp::FlatArrayMessageReader cmsg(amsg);
+    capnp::FlatArrayMessageReader cmsg(aligned_buf.align(msg));
     cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
     auto ubloxRaw = event.getUbloxRaw();
 
@@ -87,6 +84,13 @@ int ubloxd_main(poll_ubloxraw_msg_func poll_func, send_gps_event_func send_func)
           if(parser.msg_id() == MSG_MON_HW) {
             //LOGD("MSG_MON_HW");
             auto words = parser.gen_mon_hw();
+            if(words.size() > 0) {
+              auto bytes = words.asBytes();
+              pm.send("ubloxGnss", bytes.begin(), bytes.size());
+            }
+          } else if(parser.msg_id() == MSG_MON_HW2) {
+            //LOGD("MSG_MON_HW2");
+            auto words = parser.gen_mon_hw2();
             if(words.size() > 0) {
               auto bytes = words.asBytes();
               pm.send("ubloxGnss", bytes.begin(), bytes.size());

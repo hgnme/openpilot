@@ -5,6 +5,7 @@
 #include <string>
 #include <string.h>
 #include <errno.h>
+#include "common/timing.h"
 #include "common/clutil.h"
 #include "thneed.h"
 
@@ -16,12 +17,6 @@ int g_fd = -1;
 map<pair<cl_kernel, int>, string> g_args;
 map<pair<cl_kernel, int>, int> g_args_size;
 map<cl_program, string> g_program_source;
-
-static inline uint64_t nanos_since_boot() {
-  struct timespec t;
-  clock_gettime(CLOCK_BOOTTIME, &t);
-  return t.tv_sec * 1000000000ULL + t.tv_nsec;
-}
 
 void hexdump(uint32_t *d, int len) {
   assert((len%4) == 0);
@@ -433,11 +428,8 @@ cl_program thneed_clCreateProgramWithSource(cl_context context, cl_uint count, c
 }
 
 void *dlsym(void *handle, const char *symbol) {
-  // TODO: Find dlsym in a better way. Currently this is hand looked up in libdl.so
-#if defined QCOM
-  void *(*my_dlsym)(void *handle, const char *symbol) = (void *(*)(void *handle, const char *symbol))((uintptr_t)dlopen-0x2d4);
-#elif defined QCOM2
-  void *(*my_dlsym)(void *handle, const char *symbol) = (void *(*)(void *handle, const char *symbol))((uintptr_t)dlopen+0x138);
+#if defined(QCOM) || defined(QCOM2)
+  void *(*my_dlsym)(void *handle, const char *symbol) = (void *(*)(void *handle, const char *symbol))((uintptr_t)dlopen + DLSYM_OFFSET);
 #else
   #error "Unsupported platform for thneed"
 #endif
