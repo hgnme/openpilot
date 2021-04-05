@@ -1,43 +1,48 @@
 #pragma once
 
-#include <QWidget>
-#include <QButtonGroup>
-#include <QVBoxLayout>
-#include <QStackedWidget>
-#include <QPushButton>
 #include <QTimer>
+#include <QPushButton>
 #include <QNetworkAccessManager>
 
-#include "widgets/input_field.hpp"
+#include "widgets/controls.hpp"
+#include "selfdrive/hardware/hw.h"
 
-class SSH : public QWidget {
+// SSH enable toggle
+class SshToggle : public ToggleControl {
   Q_OBJECT
 
 public:
-  explicit SSH(QWidget* parent = 0);
+  SshToggle() : ToggleControl("Enable SSH", "", "", Hardware::get_ssh_enabled()) {
+    QObject::connect(this, &SshToggle::toggleFlipped, [=](bool state) {
+      Hardware::set_ssh_enabled(state);
+    });
+  }
+};
+
+// SSH key management widget
+class SshControl : public AbstractControl {
+  Q_OBJECT
+
+public:
+  SshControl();
 
 private:
-  InputField* inputField;
-  QStackedLayout* slayout;
-  QString usernameGitHub;
-  QNetworkAccessManager* manager;
-  QNetworkReply* reply;
+  QPushButton btn;
+  QString username;
+  QLabel username_label;
+
+  // networking
   QTimer* networkTimer;
-  bool aborted;
+  QNetworkReply* reply;
+  QNetworkAccessManager* manager;
+
+  void refresh();
+  void getUserKeys(QString username);
 
 signals:
-  void closeSSHSettings();
-  void openKeyboard();
-  void closeKeyboard();
-  void NoSSHAdded();
-  void SSHAdded();
   void failedResponse(QString errorString);
-  void gotSSHKeys();
 
 private slots:
-  void checkForSSHKey();
-  void getSSHKeys();
   void timeout();
   void parseResponse();
 };
-

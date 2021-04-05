@@ -76,6 +76,7 @@ void Pigeon::init() {
   send("\xB5\x62\x06\x01\x03\x00\x02\x15\x01\x22\x70"s);
   send("\xB5\x62\x06\x01\x03\x00\x02\x13\x01\x20\x6C"s);
   send("\xB5\x62\x06\x01\x03\x00\x0A\x09\x01\x1E\x70"s);
+  send("\xB5\x62\x06\x01\x03\x00\x0A\x0B\x01\x20\x74"s);
 
   LOGW("panda GPS on");
 }
@@ -132,7 +133,6 @@ void TTYPigeon::connect(const char * tty) {
   if (pigeon_tty_fd < 0){
     handle_tty_issue(errno, __func__);
     assert(pigeon_tty_fd >= 0);
-  
   }
   int err = tcgetattr(pigeon_tty_fd, &pigeon_tty);
   assert(err == 0);

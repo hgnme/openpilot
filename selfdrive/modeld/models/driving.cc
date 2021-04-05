@@ -70,7 +70,7 @@ void model_init(ModelState* s, cl_device_id device_id, cl_context context) {
 #endif
 
 #ifdef TRAFFIC_CONVENTION
-  const int idx = Params().read_db_bool("IsRHD") ? 1 : 0;
+  const int idx = Params().getBool("IsRHD") ? 1 : 0;
   s->traffic_convention[idx] = 1.0;
   s->m->addTrafficConvention(s->traffic_convention, TRAFFIC_CONVENTION_LEN);
 #endif
@@ -273,7 +273,7 @@ void model_publish(PubMaster &pm, uint32_t vipc_frame_id, uint32_t frame_id, flo
   framed.setTimestampEof(timestamp_eof);
   framed.setModelExecutionTime(model_execution_time);
   if (send_raw_pred) {
-    framed.setRawPred(raw_pred.asBytes());
+    framed.setRawPredictions(raw_pred.asBytes());
   }
   fill_model(framed, net_outputs);
   pm.send("modelV2", msg);
